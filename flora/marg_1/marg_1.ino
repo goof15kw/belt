@@ -26,6 +26,8 @@ float realAccel[3];  // calculated acceleration values here
 #define Y 1
 #define Z 2
 
+int mode; // loop swticher 
+
 void setup() {
   // Start up the LED strip
   strip.begin();
@@ -42,6 +44,7 @@ void setup() {
     Serial.println("Oops ... unable to initialize the LSM303. Check your wiring!");
     while (1);
   }
+  mode=0; // loop switcher
 }
 
 // function prototypes, do not remove these!
@@ -107,6 +110,10 @@ void loopreal(){
     Serial.print("North pixel:");
     Serial.print(pix);
     Serial.print("\n\r");
+     Serial.print("mode:");
+    Serial.print(mode);
+    Serial.print("\n\r");
+
   }
   
   affiche_cap(pix);
@@ -141,8 +148,14 @@ void affiche_cap(int nord)
 void loop () {
   // make a pretty rainbow cycle!
 // wave(strip.Color(0,127,0), 4, 20); 
-loopreal();
-  
+  mode=mode+1;
+  if (mode<5){  
+   loopreal();
+  }
+  if (mode>5 && mode<10 ){
+   loopstrip();
+  }
+  else { mode=0;} 
 }
 
 float getHeading(int * magValue)
