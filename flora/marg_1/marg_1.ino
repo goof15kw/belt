@@ -70,16 +70,17 @@ void setup() {
 
 // function prototypes, do not remove these!
 int colorChase(uint32_t c, uint8_t wait);
-void colorWipe(uint32_t c, uint8_t wait);
-void dither(uint32_t c, uint8_t wait);
-void scanner(uint8_t r, uint8_t g, uint8_t b, uint8_t wait);
+int colorWipe(uint32_t c, uint8_t wait);
+int dither(uint32_t c, uint8_t wait);
+int scanner(uint8_t r, uint8_t g, uint8_t b, uint8_t wait);
 int wave(uint32_t c, int cycles, uint8_t wait);
 int rainbowCycle(uint8_t wait);
 uint32_t Wheel(uint16_t WheelPos);
 int i=0,p=0,delta=1;
 void check_switches();
+int bousole();
 
-#define RED 'strip.Color(255,0,0)'
+
 
 int heading=0,tiltheading=0,pix=0,l=0;
 
@@ -207,31 +208,31 @@ void loop () {
       waveRoutine();
       break;
     case 3:
-      rainbowCycle(0);  // make it go through the cycle fairly fast      
+      rainbowCycle(0);      
+      break;
+    case 4:
+      scannerRoutine();
+      break;
+    case 5:
+      wipeRoutine();
+      break;
+    case 6: 
+      ditherRoutine();
+      break;
+    case 7 :
+      bousole();
       break;
     default : 
       mode=0;
       ;;
   } 
-  // make a pretty rainbow cycle!
-// wave(strip.Color(0,127,0), 4, 20); 
-//  mode=mode+1;
- 
-//  if (mode<5){  
-//   loopreal();
-//  }
-//  if (mode>5 && mode<10 ){
-//   loopstrip();
-//  }
-//  else { mode=0;} 
 }
-
 
 int delay_n_poll()
 {
 
  for (int l=0; l< period ; l++ ) {
-   check_switches() ; l+=DEBOUNCE; // check_switches induces delay
+   check_switches() ; // no, pas pantoute l+=DEBOUNCE; // check_switches induces delay
    if (1== process_switches()) {return 1;}
    delay(1);
  } 
@@ -239,10 +240,6 @@ int delay_n_poll()
 }
 
 int looplm() {
-
-   //strip.setPixelColor(0,strip.Color(0,255,0));
-  //strip.setPixelColor(1,strip.Color(0,0,254));
-  //strip.setPixelColor(2,strip.Color(255,0,0));
   byte r,g,b;
   uint32_t c;
   while (true){
@@ -262,15 +259,7 @@ int looplm() {
   b =  c        & 0x7f; 
   // less less less less bright
   r=r>>4; b=b>>4 ; g=g>>4;
-  //Serial.print("green: ");
-  //Serial.print(g);
-  //Serial.print(" \n");
-  //Serial.print("blue: ");
-  //Serial.print(b);
-  //Serial.print(" \n");
-  //Serial.print("red: ");
-  //Serial.print(r);
-  //Serial.print(" \n");
+  
   c=strip.Color(r,g,b);
   strip.setPixelColor(p-1,c);
   strip.setPixelColor(p+1,c);
@@ -304,29 +293,29 @@ int colorChaseRoutine() {
   }
   return 0;
 }
+
+#define CANDY_CANE strip.Color(0,0,100)
+#define RED strip.Color(127,0,0)
+#define CYAN  strip.Color(0,127,127)
+#define BLACK strip.Color(0,0,0)
+#define GREEN strip.Color(0,127,0)
+#define MAGENTA strip.Color(127,0,127)
+#define YELLOW  strip.Color(127,127,0)
+#define BLUE strip.Color(0,0,127)
+#define RANDOM Wheel(random(384))
+
 int waveRoutine() {
-   uint32_t colors[]= { strip.Color(0,0,100),  // candy cane
-      strip.Color(127,127,0),  // yellow
-       strip.Color(0,127,0),    // green
-                    strip.Color(127,0,0)    // icy
-  } ;
-  for (int t=0; t<=sizeof(colors)/sizeof(uint32_t) ; t++ ){
+   uint32_t colors[]= { CANDY_CANE, YELLOW, GREEN, RED,RANDOM,RANDOM,RANDOM,RANDOM,RANDOM } ;
+  for (int t=0; t<sizeof(colors)/sizeof(uint32_t) ; t++ ){
     if (wave(colors[t],2,20)) {return 1;}
   }
   return 0;
- // Wavy ripple effects
-//  wave(strip.Color(127,0,0), 4, 20);        // candy cane
-//  wave(strip.Color(0,0,100), 2, 40);        // icy
 }
 
-int scannerRoutine()
+int scannerRoutine() {
    int r,g,b;
-   uint32_t colors[]= { strip.Color(127,0,0),  // red
-      strip.Color(0,0,127),  // blue
-       strip.Color(0,127,0),    // green
-                    strip.Color(127,0,0)    // icy
-  } ;
-  for (int t=0; t<=sizeof(colors)/sizeof(uint32_t) ; t++ ){
+   uint32_t colors[]= { RED, BLUE,RANDOM, RED,RANDOM,RANDOM,RANDOM,RANDOM,RANDOM } ;
+  for (int t=0; t<sizeof(colors)/sizeof(uint32_t) ; t++ ){
         g = (colors[t] >> 16) & 0x7f;
         r = (colors[t] >>  8) & 0x7f;
         b =  colors[t]        & 0x7f; 
@@ -334,10 +323,24 @@ int scannerRoutine()
   }
   return 0;
 
-   // Back-and-forth lights
-//  scanner(127,0,0, 30);        // red, slow
-//  scanner(0,0,127, 15);        // blue, fast
 }
+
+
+int ditherRoutine() {
+   uint32_t colors[]= { BLACK,CYAN , BLACK, MAGENTA,BLACK, YELLOW,BLACK, Wheel(random(384)),BLACK,RANDOM,BLACK,RANDOM,BLACK,RANDOM,BLACK,RANDOM} ;
+  for (int t=0; t<sizeof(colors)/sizeof(uint32_t) ; t++ ){
+    if (dither(colors[t],20)) {return 1;}
+  }
+  return 0;
+}
+int wipeRoutine() {
+   uint32_t colors[]= { RED , GREEN, BLUE,BLACK,RANDOM,BLACK,RANDOM,BLACK,RANDOM};
+  for (int t=0; t<sizeof(colors)/sizeof(uint32_t) ; t++ ){
+    if (colorWipe(colors[t],20)) {return 1;}
+  }
+  return 0;
+}
+
 
 void loopstrip() {
 
@@ -402,14 +405,15 @@ int rainbowCycle(uint8_t wait) {
 
 // fill the dots one after the other with said color
 // good for testing purposes
-void colorWipe(uint32_t c, uint8_t wait) {
+int colorWipe(uint32_t c, uint8_t wait) {
   int i;
 
   for (i=0; i < strip.numPixels(); i++) {
       strip.setPixelColor(i, c);
       strip.show();
-      delay(wait);
+      if (delay_n_poll()) {return 1;}
   }
+  return 0;
 }
 
 // Chase a dot down the strip
@@ -434,7 +438,7 @@ int colorChase(uint32_t c, uint8_t wait) {
 
 // An "ordered dither" fills every pixel in a sequence that looks
 // sparkly and almost random, but actually follows a specific order.
-void dither(uint32_t c, uint8_t wait) {
+int dither(uint32_t c, uint8_t wait) {
 
   // Determine highest bit needed to represent pixel index
   int hiBit = 0;
@@ -453,9 +457,10 @@ void dither(uint32_t c, uint8_t wait) {
     }
     strip.setPixelColor(reverse, c);
     strip.show();
-    delay(wait);
+    if (delay_n_poll()) { return 1;}
   }
   delay(250); // Hold image for 1/4 sec
+  return 0;
 }
 
 // "Larson scanner" = Cylon/KITT bouncing light effect
@@ -562,7 +567,7 @@ uint32_t Wheel(uint16_t WheelPos)
   return(strip.Color(r,g,b));
 }
 
-void loop_bousole(){
+int bousole(){
   lsm.read();
   
   accel[0]=(int)lsm.accelData.x;
@@ -582,7 +587,7 @@ void loop_bousole(){
   if (pix<0) { pix+=32 ; }
   
   l++;
-  if (0==l%25) {
+  if (0==l%2500) {
   Serial.print("Accel X: "); Serial.print((int)lsm.accelData.x); Serial.print(" ");
   Serial.print("Y: "); Serial.print((int)lsm.accelData.y);       Serial.print(" ");
   Serial.print("Z: "); Serial.print((int)lsm.accelData.z);     Serial.print(" ");
@@ -612,7 +617,7 @@ void loop_bousole(){
   
   affiche_cap(pix);
 
-  delay(10);
+  return delay_n_poll();
 }
 
 void affiche_cap(int nord)
