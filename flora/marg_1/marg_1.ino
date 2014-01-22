@@ -43,16 +43,7 @@ int period=250 ; // interval entre updates.
 int mode; // loop swticher 
 
 
-uint8_t myFavoriteColors[][3] = {{200,   0, 200},   // purple
-                                 {200,   0,   0},   // red 
-                                 {200, 200, 200},   // white
-                               };
-// don't edit the line below
-#define FAVCOLORS sizeof(myFavoriteColors) / 3
- 
-// mess with this number to adjust TWINklitude :)
-// lower number = more sensitive
-#define MOVE_THRESHOLD 45
+
  
 
 void setup() {
@@ -211,9 +202,8 @@ void loop () {
 //  looplm();
   switch(mode) {
     case 0 :
-//        Move();
+        Move();
 //      allColors();
-      colorChaseRoutine();
       break;
     case 1: 
       looplm();
@@ -236,17 +226,20 @@ void loop () {
     case 7 :
       bousole();
       break;
+    case 8 :
+      colorChaseRoutine();
+      break;
     default : 
       mode=0;
       ;;
   } 
 }
 
-int delay_n_poll()
+int delay_n_poll(int p=period)
 {
 
- for (int l=0; l< period ; l++ ) {
-   check_switches() ; // no, pas pantoute l+=DEBOUNCE; // check_switches induces delay
+ for (int l=0; l< p ; l++ ) {
+   check_switches() ; 
    if (1== process_switches()) {return 1;}
    delay(1);
  } 
@@ -284,13 +277,25 @@ int looplm() {
   }
   return 0; //impossible 
 }
+
+uint8_t myFavoriteColors[][3] = {{200,   0, 200},   // purple
+                                 {200,   0,   0},   // red 
+                                 {200, 200, 200},   // white
+                               };
+// don't edit the line below
+#define FAVCOLORS sizeof(myFavoriteColors) / 3
+ 
+// mess with this number to adjust TWINklitude :)
+// lower number = more sensitive
+#define MOVE_THRESHOLD 350
+
 int Move(){
  
   // Take a reading of accellerometer data
   lsm.read();
-  Serial.print("Accel X: "); Serial.print(lsm.accelData.x); Serial.print(" ");
-  Serial.print("Y: "); Serial.print(lsm.accelData.y);       Serial.print(" ");
-  Serial.print("Z: "); Serial.print(lsm.accelData.z);     Serial.print(" ");
+ // Serial.print("Accel X: "); Serial.print(lsm.accelData.x); Serial.print(" ");
+ // Serial.print("Y: "); Serial.print(lsm.accelData.y);       Serial.print(" ");
+ // Serial.print("Z: "); Serial.print(lsm.accelData.z);     Serial.print(" ");
  
   // Get the magnitude (length) of the 3 axis vector
   // http://en.wikipedia.org/wiki/Euclidean_vector#Length
@@ -298,10 +303,10 @@ int Move(){
   storedVector += lsm.accelData.y*lsm.accelData.y;
   storedVector += lsm.accelData.z*lsm.accelData.z;
   storedVector = sqrt(storedVector);
-  Serial.print("Len: "); Serial.println(storedVector);
+  //Serial.print("Len: "); Serial.println(storedVector);
   
   // wait a bit
-  if (delay_n_poll()) return 1;
+  if (delay_n_poll(100)) return 1;
 
 //  delay(100);
   
@@ -311,79 +316,104 @@ int Move(){
   newVector += lsm.accelData.y*lsm.accelData.y;
   newVector += lsm.accelData.z*lsm.accelData.z;
   newVector = sqrt(newVector);
-  Serial.print("New Len: "); Serial.println(newVector);
-  
+//  Serial.print("New Len: "); Serial.println(newVector);
+
+  int force=abs(newVector - storedVector);  
   // are we moving 
-  if (abs(newVector - storedVector) > MOVE_THRESHOLD) {
-    Serial.println("Twinkle!");
-    flashRandom(2, 15);  // first number is 'wait' delay, shorter num == shorter twinkle
-    flashRandom(2, 5);  // second number is how many neopixels to simultaneously light up
-    flashRandom(2, 7);
+  if (force > MOVE_THRESHOLD) {
+    // we want dividor between 50 - 1000 (sky is the limit-> slow
+    // we have period [ 1 - 5-10k ] sky is the limit->slow 
+    int dividor=period; // for now take period strit, could be scaled.
+    
+    // between 1 and 10 maybe, based on ? period?
+    // 1- 10k -> 1 - 10 
+    int flash_wait=period/1000 ;
+
+//    Serial.println("Twinkle! dividor:");    Serial.println(dividor);
+    if ( flashRandom(flash_wait, force/dividor) ) {return 1;}  // first number is 'wait' delay, shorter num == shorter twinkle
+//    flashRandom(2, 5);  // second number is how many neopixels to simultaneously light up
+//    flashRandom(2, 7);
   }
   return 0;
 }
+
+  // Need to decompose color into its r, g, b elements
+int C_to_g(uint32_t c) { return  ((c >> 16) & 0x7f) ;}
+int C_to_r(uint32_t c) { return (c >>  8) & 0x7f; }
+int C_to_b(uint32_t c) {return   c        & 0x7f;  }
+
  
-void flashRandom(int wait, uint8_t howmany) {
+int flashRandom(int wait, uint8_t howmany) {
  
+  int steps=3; // nb steps fadin/out
+  
   byte ps[howmany]; // pixels
-  byte cos[howmany]; // colors
+  uint32_t cos[howmany]; // colors
+  
+  if (howmany > strip.numPixels() ) { howmany=strip.numPixels();} 
   
   for(uint16_t i=0; i<howmany; i++) {
     // pick a random favorite color!
-    int c = random(FAVCOLORS);
-    int red = myFavoriteColors[c][0];
-    int green = myFavoriteColors[c][1];
-    int blue = myFavoriteColors[c][2]; 
+//    int c = random(FAVCOLORS);
+    uint32_t c = Wheel(random(384));
  
     // get a random pixel from the list
     int j = random(strip.numPixels());
+    for (int ii=0; ii<i ; ii++ ) { 
+      // if we find this color, pick another and look again at the start
+      if ( ps[ii] == j ) { j=random(strip.numPixels()); ii=0 ;} 
+    }
     //Serial.print("Lighting up "); Serial.println(j); 
     ps[i]=j;
     cos[i]=c;
+  //  Serial.print("Lighting up "); Serial.println(cos[i]); 
   }
   // now we will 'fade' it in 5 steps
-  for (int x=0; x < 5; x++) {
+  steps=random(6)+2 ;// 2 - 8 steps 
+  for (int x=0; x < steps; x++) {
   
   for(uint16_t i=0; i<howmany; i++) {
     // pick a random favorite color!
-    int c = cos[i];
-    int red = myFavoriteColors[c][0];
-    int green = myFavoriteColors[c][1];
-    int blue = myFavoriteColors[c][2]; 
- 
+    uint32_t c = cos[i];
+    int red = C_to_r(c);
+    int green = C_to_g(c);
+    int blue = C_to_b(c);
+
     //Serial.print("Lighting up "); Serial.println(j); 
     
-      int r = red * (x+1); r /= 5;
-      int g = green * (x+1); g /= 5;
-      int b = blue * (x+1); b /= 5;
+      int r = red * (x+1); r /= steps;
+      int g = green * (x+1); g /= steps;
+      int b = blue * (x+1); b /= steps;
       
       strip.setPixelColor(ps[i], strip.Color(r, g, b));
       strip.show();
-      delay(wait);
+      if (delay_n_poll(wait)) return 1;
   }
   }
 
   // & fade out in 5 steps
-  for (int x=5; x >= 0; x--) {
+  steps=random(6)+2; // 2 - 8 steps 
+  for (int x=steps; x >= 0; x--) {
 
   for(uint16_t i=0; i<howmany; i++) {
 
     // pick a random favorite color!
-      int c = cos[i];
-      int red = myFavoriteColors[c][0];
-      int green = myFavoriteColors[c][1];
-    int blue = myFavoriteColors[c][2]; 
+    uint32_t c = cos[i];
+    int red = C_to_r(c);
+    int green = C_to_g(c);
+    int blue = C_to_b(c);
 
-      int r = red * x; r /= 5;
-      int g = green * x; g /= 5;
-      int b = blue * x; b /= 5;
+      int r = red * x; r /= steps;
+      int g = green * x; g /= steps;
+      int b = blue * x; b /= steps;
       
       strip.setPixelColor(ps[i], strip.Color(r, g, b));
       strip.show();
-      delay(wait);
+      if (delay_n_poll(wait)) return 1;
     }
   }
   // LEDs will be off when done (they are faded to 0)
+  return 0;
 }
  
 
