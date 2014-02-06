@@ -39,7 +39,8 @@ byte pressed[NUMBUTTONS], justpressed[NUMBUTTONS], justreleased[NUMBUTTONS];
 int blue_idx=0;
 int red_idx=1;
 
-int period=250 ; // interval entre updates.
+//int period=250 ; // interval entre updates.
+int period=1 ; // interval entre updates.
 int mode; // loop swticher 
 
 
@@ -147,12 +148,15 @@ void check_switches()
 
 void loop_debug_switch()
 {
-  Serial.print("Red:");
-  Serial.print(pressed[red_idx]);
-  Serial.print(" Blue:");
-  Serial.print(pressed[blue_idx]);
-  Serial.print("\n");
-  delay(250); 
+  while (1){
+    check_switches();
+    Serial.print("Red:");
+    Serial.print(pressed[red_idx]);
+    Serial.print(" Blue:");
+    Serial.print(pressed[blue_idx]);
+    Serial.print("\n");
+    delay(250); 
+  }
 }
 
 // return 0 except if both, return 1 
@@ -164,12 +168,15 @@ int process_switches()
   int min=1,max=25000;
   
   // both
-  if (!pressed[red_idx] && !pressed[blue_idx]) { 
+  //if (!pressed[red_idx] && !pressed[blue_idx]) { 
+  if (!pressed[blue_idx]) {     
     Serial.print("Got Both buttons, mode:");
     delay(DEBOUNCE*100); // sinon, y'en rentre 10-100...
     mode++;
+    period=random(8)+1; //1-9
+    period=period*period; // 1-81 exponentiel tendance en bas.
   //  if (mode>=num_modes) { mode=0; }
-    Serial.print(mode);
+    Serial.print(period);
     Serial.print("\n");
     // reset this otherwise we get here again, pas claire... 
     pressed[red_idx]=pressed[blue_idx]=1 ;
@@ -198,7 +205,7 @@ int process_switches()
 void loop () {
   
 //  check_switches();
-  //loop_debug_switch();
+//loop_debug_switch();
 //  looplm();
   switch(mode) {
     case 0 :
@@ -323,11 +330,18 @@ int Move(){
   if (force > MOVE_THRESHOLD) {
     // we want dividor between 50 - 1000 (sky is the limit-> slow
     // we have period [ 1 - 5-10k ] sky is the limit->slow 
-    int dividor=period; // for now take period strit, could be scaled.
+//    int dividor=period; // for now take period strit, could be scaled.
+    int dividor=250; // for now take period strit, could be scaled.
     
     // between 1 and 10 maybe, based on ? period?
     // 1- 10k -> 1 - 10 
     int flash_wait=period/1000 ;
+
+    // needed after transition from other state, not at boot...
+    for (int p=0; p < strip.numPixels(); p++) {
+      strip.setPixelColor(p, 0);
+    } 
+
 
 //    Serial.println("Twinkle! dividor:");    Serial.println(dividor);
     if ( flashRandom(flash_wait, force/dividor) ) {return 1;}  // first number is 'wait' delay, shorter num == shorter twinkle
@@ -345,11 +359,10 @@ int C_to_b(uint32_t c) {return   c        & 0x7f;  }
  
 int flashRandom(int wait, uint8_t howmany) {
  
-  int steps=3; // nb steps fadin/out
-  
   byte ps[howmany]; // pixels
   uint32_t cos[howmany]; // colors
-  
+  byte steps[howmany]; // steps to fade
+  byte max_steps=0; 
   if (howmany > strip.numPixels() ) { howmany=strip.numPixels();} 
   
   for(uint16_t i=0; i<howmany; i++) {
@@ -363,14 +376,15 @@ int flashRandom(int wait, uint8_t howmany) {
       // if we find this color, pick another and look again at the start
       if ( ps[ii] == j ) { j=random(strip.numPixels()); ii=0 ;} 
     }
-    //Serial.print("Lighting up "); Serial.println(j); 
     ps[i]=j;
     cos[i]=c;
-  //  Serial.print("Lighting up "); Serial.println(cos[i]); 
+    steps[i]=random(4)+1 ;// 1 - 5 steps
+    if (steps[i] > max_steps ) {max_steps=steps[i];} 
+    
   }
-  // now we will 'fade' it in 5 steps
-  steps=random(6)+2 ;// 2 - 8 steps 
-  for (int x=0; x < steps; x++) {
+  // now we will 'fade' it in x steps
+  
+  for (int x=0; x < max_steps; x++) {
   
   for(uint16_t i=0; i<howmany; i++) {
     // pick a random favorite color!
@@ -378,22 +392,25 @@ int flashRandom(int wait, uint8_t howmany) {
     int red = C_to_r(c);
     int green = C_to_g(c);
     int blue = C_to_b(c);
-
+//    int s=steps[i]; // This version would make each pixel independant, but need to integrate loop below
+    int s=max_steps ; // steps
     //Serial.print("Lighting up "); Serial.println(j); 
     
-      int r = red * (x+1); r /= steps;
-      int g = green * (x+1); g /= steps;
-      int b = blue * (x+1); b /= steps;
+      int r = red * (x+1); r /= s;
+      int g = green * (x+1); g /= s;
+      int b = blue * (x+1); b /= s;
       
       strip.setPixelColor(ps[i], strip.Color(r, g, b));
       strip.show();
       if (delay_n_poll(wait)) return 1;
   }
   }
-
+    Serial.println("Max_steps: ");
+    Serial.println(max_steps);
+    Serial.println("\n");
   // & fade out in 5 steps
-  steps=random(6)+2; // 2 - 8 steps 
-  for (int x=steps; x >= 0; x--) {
+//max_steps=random(6)+2; // 2 - 8 steps 
+  for (int x=max_steps; x >= 0; x--) {
 
   for(uint16_t i=0; i<howmany; i++) {
 
@@ -402,10 +419,11 @@ int flashRandom(int wait, uint8_t howmany) {
     int red = C_to_r(c);
     int green = C_to_g(c);
     int blue = C_to_b(c);
-
-      int r = red * x; r /= steps;
-      int g = green * x; g /= steps;
-      int b = blue * x; b /= steps;
+    int s=max_steps ; // this to change.
+    
+      int r = red * x; r /= s;
+      int g = green * x; g /= s;
+      int b = blue * x; b /= s;
       
       strip.setPixelColor(ps[i], strip.Color(r, g, b));
       strip.show();
