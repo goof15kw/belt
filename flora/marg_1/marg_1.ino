@@ -1,3 +1,5 @@
+#include <Adafruit_LSM303.h>
+
 #include "LPD8806.h"
 #include "SPI.h"
 #include <Wire.h>
@@ -13,7 +15,8 @@ int dataPin = 12;
 int clockPin = 6;
 // Set the first variable to the NUMBER of pixels. 32 = 32 pixels in a row
 // The LED strips are 32 LEDs per meter but you can extend/cut the strip
-LPD8806 strip = LPD8806(32, dataPin, clockPin);
+// was 32 software patch to HW bug : les 6 dernieres sont mortes.
+LPD8806 strip = LPD8806(26, dataPin, clockPin);
 
 
 /* Global variables */
@@ -69,7 +72,7 @@ void setup() {
     Serial.println("Oops ... unable to initialize the LSM303. Check your wiring!");
 //    while (1);
   }
-  mode=0; // loop switcher
+  mode=9; // loop switcher
 }
 
 // function prototypes, do not remove these!
@@ -170,7 +173,7 @@ int process_switches()
   // both
   //if (!pressed[red_idx] && !pressed[blue_idx]) { 
   if (!pressed[blue_idx]) {     
-    Serial.print("Got Both buttons, mode:");
+    Serial.print("Got Blue buttons, period:");
     delay(DEBOUNCE*100); // sinon, y'en rentre 10-100...
     mode++;
     period=random(8)+1; //1-9
@@ -186,17 +189,24 @@ int process_switches()
   //Serial.print(period);
   if (!pressed[red_idx]) { 
      period-=inc;   
-  //   Serial.print(" is faster\n"); 
+    Serial.print(period);
+    Serial.print(" is faster\n"); 
   }
 
   // slower
   if (!pressed[blue_idx]) { 
     period+=inc; 
-  //  Serial.print(" is slower\n"); 
+    Serial.print(period);
+    Serial.print(" is slower\n"); 
   }
   // but there are limits!
-  if(period<min) { period = min;}
-  if(period>max) { period = max;}
+  // bounce en bas, pas moyen de inc. donc >max s'applique pas 
+  if(period<min) { 
+      period=random(8)+1; //1-9
+      period=period*period; // 1-81 exponentiel tendance en bas.
+  }
+  if(period>max) { period = min;}
+  
   
   return 0;
 }
@@ -235,6 +245,9 @@ void loop () {
       break;
     case 8 :
       colorChaseRoutine();
+      break;
+    case 9:
+      flashRoutine();
       break;
     default : 
       mode=0;
@@ -434,6 +447,28 @@ int flashRandom(int wait, uint8_t howmany) {
   return 0;
 }
  
+// Halloween : Orange
+#define ORANGE strip.Color(127,73,0)
+#define MAUVE strip.Color(51,25,76)
+#define VERT strip.Color(13,82,22)
+#define P1 strip.Color(114,42,0)
+#define P2 strip.Color(120,53,13)
+#define P3 strip.Color(127,95,37)
+#define P4 strip.Color(127,120,85)
+
+
+
+
+#define CANDY_CANE strip.Color(0,0,100)
+#define RED strip.Color(127,0,0)
+#define CYAN  strip.Color(0,127,127)
+#define BLACK strip.Color(0,0,0)
+#define GREEN strip.Color(0,127,0)
+#define MAGENTA strip.Color(127,0,127)
+#define YELLOW  strip.Color(127,127,0)
+#define BLUE strip.Color(0,0,127)
+#define RANDOM Wheel(random(384))
+
 
 int allColors()
 {
@@ -478,21 +513,14 @@ int colorChaseRoutine() {
                     strip.Color(0,0,127),      // blue
                     strip.Color(127,0,127)    // magenta
   } ;
+  
+  //uint32_t colors[]={P1,P2,P3,P4};
   for (int t=0; t<sizeof(colors)/sizeof(uint32_t) ; t++ ){
     if (colorChase(colors[t],20)) {return 1;}
   }
   return 0;
 }
 
-#define CANDY_CANE strip.Color(0,0,100)
-#define RED strip.Color(127,0,0)
-#define CYAN  strip.Color(0,127,127)
-#define BLACK strip.Color(0,0,0)
-#define GREEN strip.Color(0,127,0)
-#define MAGENTA strip.Color(127,0,127)
-#define YELLOW  strip.Color(127,127,0)
-#define BLUE strip.Color(0,0,127)
-#define RANDOM Wheel(random(384))
 
 int waveRoutine() {
    uint32_t colors[]= { CANDY_CANE, YELLOW, GREEN, RED,RANDOM,RANDOM,RANDOM,RANDOM,RANDOM } ;
@@ -500,6 +528,13 @@ int waveRoutine() {
     if (wave(colors[t],2,20)) {return 1;}
   }
   return 0;
+}
+
+int flashRoutine() {
+ uint32_t colors[]= { RANDOM } ;
+ //flashRandom(int wait, uint8_t howmany)  
+ flashRandom( 1, RANDOM%4);
+ return 0 ;
 }
 
 int scannerRoutine() {
